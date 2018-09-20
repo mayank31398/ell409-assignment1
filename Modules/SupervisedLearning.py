@@ -75,15 +75,11 @@ class BayesClassifier:
     priors = None
     alphas = None
     algorithm = None
-    inverse = None
     
-    def __init__(self, algorithm = "MLE", inverse = True):
+    def __init__(self, algorithm = "MLE"):
         self.algorithm = algorithm
-        self.inverse = inverse
     
     def Fit(self, x, y, num_alphas, iterations = 100):
-        if(self.algorithm == "MLE"):
-            iterations = 1
         epsilon = 1e-10
         
         classes = list(set(y))
@@ -102,7 +98,7 @@ class BayesClassifier:
             priors[i] = x[temp].shape[0] / num_samples
             x_ = x[temp]
             
-            alpha_, mu_, sigma_ = EMdD(x_, num_alphas[i], self.algorithm, iterations = iterations, inverse = self.inverse)
+            alpha_, mu_, sigma_ = EMdD(x_, num_alphas[i], self.algorithm, iterations = iterations)
             self.mu[i] = mu_
             self.sigma[i] = sigma_
             self.alphas[i] = alpha_

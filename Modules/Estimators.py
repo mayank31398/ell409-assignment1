@@ -47,22 +47,26 @@ def EM1D(x, num_alpha, iterations):
     
     return alpha, mu, sigma
 
-def EMdD(x, num_alpha, algorithm, iterations, inverse = True):
+def EMdD(x, num_alpha, algorithm, iterations):
     num_samples = x.shape[0]
     num_features = x.shape[1]
+    
+    if(algorithm == "MLE"):
+        alphas = np.ones([1, 1])
+        mu = x.sum(axis = 0, keepdims = True) / num_samples
+        x_ = x - mu
+        x_ = x_.reshape(num_samples, num_features, 1)
+        x_ = np.matmul(x_, x_.transpose([0, 2, 1]))
+        sigma = x_.sum(axis = 0) / num_samples
+    elif(algorithm == "EM"):
+        mu = np.random.uniform(1, 2, size = [num_alpha, num_features])
+        
+        sigma = np.abs(np.random.randn(num_alpha, num_features, num_features))
+        sigma = 0.5 * (sigma + sigma.transpose([0, 2, 1]))
+        sigma += num_features * np.eye(num_features).reshape(1, num_features, num_features)
+        
+        alphas = np.zeros([1, num_alpha]) + 1 / num_alpha
 
-    if(algorithm == "MLE" and not inverse):
-        inverse = False
-    
-    mu = np.random.uniform(1, 2, size = [num_alpha, num_features])
-    
-    sigma = np.abs(np.random.randn(num_alpha, num_features, num_features))
-    sigma = 0.5 * (sigma + sigma.transpose([0, 2, 1]))
-    sigma += num_features * np.eye(num_features).reshape(1, num_features, num_features)
-    
-    alphas = np.zeros([1, num_alpha]) + 1 / num_alpha
-    
-    if(inverse):
         for i in range(iterations):
             mu_ = mu.reshape(num_alpha, num_features, 1)
             x_ = x.T
@@ -91,46 +95,6 @@ def EMdD(x, num_alpha, algorithm, iterations, inverse = True):
             x_ = np.matmul(x_, x_.transpose([0, 1, 3, 2]))
             sigma = (w_.T.reshape(num_alpha, num_samples, 1, 1) * x_).sum(axis = 1) / (w_sum.T.reshape(num_alpha, 1, 1) + 1e-6)
 
-            # x_ = np.matmul(x_, x_.transpose([0, 2, 1]))
-            # x_ = x_.reshape(num_samples, num_features, num_features, 1)
-            # w_ = w.reshape(num_samples, 1, 1, num_alpha)
-            # sigma = (w_ * x_).sum(axis = 0).transpose([2, 0, 1]) / w_sum.T.reshape(num_alpha, 1, 1)
-
-            # x_ = x.reshape(num_samples, num_features, 1)
-            # x_ = np.matmul(x_, x_.transpose([0, 2, 1]))
-            # x_ = x_.reshape(num_samples, num_features, num_features, 1)
-            # w_ = w.reshape(num_samples, 1, 1, num_alpha)
-            # sigma = (w_ * x_).sum(axis = 0).transpose([2, 0, 1]) / w_sum.T.reshape(num_alpha, 1, 1)
-
             alphas = w_sum / num_samples
-    else:
-        for i in range(iterations):
-            mu_ = mu.reshape(num_alpha, num_features, 1)
-            x_ = x.T
-            x_ = x_.reshape(1, num_features, num_samples)
 
-            gaussians_ = x_ - mu_
-            gaussians_ = gaussians_.transpose([0, 2, 1])
-            gaussians_ = np.matmul(gaussians_, np.linalg.inv(sigma))
-            gaussians_ = (gaussians_ * (x_ - mu_).transpose([0, 2, 1])).sum(axis = 2)
-            gaussians_ /= (np.sqrt(np.linalg.det(sigma).reshape(num_alpha, 1)) * (2 * np.pi) ** (num_features / 2))
-            gaussians_ = gaussians_.T
-            gaussians_ *= alphas
-
-            w = gaussians_ / gaussians_.sum(axis = 1, keepdims = True)
-            w_sum = w.sum(axis = 0, keepdims = True)
-
-            w_ = w.T
-            w_ = w_.reshape(num_alpha, num_samples, 1)
-            x_ = x.reshape(1, num_samples, num_features)
-            mu = (w_ * x_).sum(axis = 1) / (w_sum.T + 1e-6)
-
-            x_ = x.reshape(num_samples, num_features, 1)
-            x_ = np.matmul(x_, x_.transpose([0, 2, 1]))
-            x_ = x_.reshape(num_samples, num_features, num_features, 1)
-            w_ = w.reshape(num_samples, 1, 1, num_alpha)
-            sigma = (w_ * x_).sum(axis = 0).transpose([2, 0, 1]) / w_sum.T.reshape(num_alpha, 1, 1)
-
-            alphas = w_sum / num_samples
-    
     return alphas, mu, sigma
