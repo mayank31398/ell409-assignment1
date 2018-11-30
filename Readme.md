@@ -2,7 +2,7 @@
 ## ELL409
 ### Indian Institute of Technology Delhi
 
-#### The Modules folder contains both supervised and unsupervised learning algorithms.
+I thank Professor Prathosh AP (IIT Delhi) for providing the medical and railway datasets.
 
 #### The learning algorithms implemented are:
 ```
