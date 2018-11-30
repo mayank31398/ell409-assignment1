@@ -1,9 +1,10 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from Modules.Density import FitDensityEstimate1D, PredictDensityEstimate1D
 from Modules.Estimators import EMdD
 from Modules.Metrics import Accuracy, roc_curve
 from Modules.Distances import Distance
-import matplotlib.pyplot as plt
+from Modules.Activations import Sigmoid, Softmax
 
 class NaiveBayesClassifier:
     training_accuracy = 0
@@ -18,8 +19,6 @@ class NaiveBayesClassifier:
         self.algorithm = algorithm
     
     def Fit(self, x, y, num_alphas, iterations = 100, roc_plot = False, label = None):
-#         x : (num_samples, num_features)
-#         y : (num_samples)
         classes = list(set(y))
         
         num_samples = x.shape[0]
@@ -203,7 +202,6 @@ class kNNClassifier:
             
             dist = Distance(x_, x_test_, metric = self.distance_metric, axis = 1)
             temp = np.argpartition(dist, k - 1, axis = 1)[:, :k].reshape(num_test_samples, k)
-            # temp = np.argsort(dist, axis = 1)[:, :k].reshape(num_test_samples, k)
             
             temp = y[temp]
             predictions = []
@@ -313,3 +311,295 @@ class ParzenWindow:
                 predictions.append(prediction)
             
         return np.array(predictions)
+
+class LogisticRegression:
+    classes = None
+    weights = None
+    regularize = None
+
+    def __init__(self, regularize = False):
+        self.regularize = regularize
+
+    def Fit(self, x, y, learning_rate = 0.1, iterations = 10000, alpha = 0.1):
+        classes = list(set(y))
+        num_samples = x.shape[0]
+        num_features = x.shape[1]
+        x_ = x.T
+
+        weights = {}
+        
+        for i in classes:
+            y_ = (y == i).astype(int)
+
+            if(not self.regularize):
+                alpha = 0
+            
+            W = np.random.randn(1, num_features)
+            b = np.random.randn(1)
+
+            for j in range(iterations):
+                h = Sigmoid(np.matmul(W, x_) + b)
+
+                W_grad = ((h - y_) * x_).sum(axis = 1) / num_samples + 2 * alpha * W
+                b_grad = (h - y_).sum(axis = 1) / num_samples
+
+                W -= learning_rate * W_grad
+                b -= learning_rate * b_grad
+
+            weights[i] = {
+                "W": W,
+                "b": b
+            }
+            
+            self.classes = classes
+            self.weights = weights
+    
+    def Predict(self, x, threshold = 0.5):
+        classes = self.classes
+        weights = self.weights
+        num_samples = x.shape[0]
+        x_ = x.T
+
+        predictions = {}
+        concat_ = False
+        for i in classes:
+            W = weights[i]["W"]
+            b = weights[i]["b"]
+
+            temp_ = Sigmoid(np.matmul(W, x_) + b).reshape(num_samples)
+            if(not concat_):
+                q = temp_.reshape(num_samples, 1)
+                concat_ = True
+            else:
+                q = np.concatenate([q, temp_.reshape(num_samples, 1)], axis = 1)
+
+        q = np.argmax(q, axis = 1)
+        classes = np.array(classes)
+        predictions = classes[q]
+        
+        return predictions
+
+class SoftmaxRegression:
+    classes = None
+    weights = None
+
+    def Fit(self, x, y, learning_rate = 0.1, iterations = 10000):
+        classes = list(set(y))
+        num_samples = x.shape[0]
+        x = np.concatenate([np.ones([num_samples, 1]), x], axis = 1)
+        num_features = x.shape[1]
+        num_classes = len(classes)
+        x_ = x.T
+
+        y_ = np.zeros([num_classes, num_samples])
+        for i in range(num_classes):
+            temp = y == classes[i]
+            y_[i, temp] = 1
+        
+        weights = {}
+        W = np.random.randn(num_classes, num_features)
+        
+        for i in range(iterations):
+            temp = np.exp(np.matmul(W, x_))
+            z = temp.sum(axis = 0).reshape(1, num_samples, 1)
+
+            grad1 = temp ** 2
+            grad1 = grad1.T.reshape(1, num_samples, num_classes)
+            grad1 = grad1 * x_.reshape(num_features, num_samples, 1) / z ** 2
+
+            grad2 = y_ * temp
+            grad2 = grad2.T.reshape(1, num_samples, num_classes)
+            grad2 = grad2 * x_.reshape(num_features, num_samples, 1) / z
+
+            W_grad = (grad1 - grad2).sum(axis = 1).T / num_samples
+            W -= learning_rate * W_grad
+
+        weights["W"] = W
+        self.weights = weights
+        self.classes = classes
+
+        temp = Softmax(np.matmul(W, x_))
+        temp = np.argmax(temp, axis = 0)
+        classes = np.array(classes)
+        predictions = classes[temp]
+
+        return predictions
+
+    def Predict(self, x):
+        classes = self.classes
+        weights = self.weights
+        num_samples = x.shape[0]
+        x = np.concatenate([np.ones([num_samples, 1]), x], axis = 1)
+        x_ = x.T
+
+        W = weights["W"]
+
+        temp = Softmax(np.matmul(W, x_))
+        temp = np.argmax(temp, axis = 0)
+        classes = np.array(classes)
+        predictions = classes[temp]
+
+        return predictions
+
+class LinearRegression:
+    regularize = None
+    weights = None
+    training_error = None
+
+    def __init__(self, regularize = False):
+        self.regularize = regularize
+    
+    def Fit(self, x, y, alpha = 0.1):
+        num_samples = x.shape[0]
+        x = np.concatenate([np.ones([num_samples, 1]), x], axis = 1)
+        num_features = x.shape[1]
+        x_ = x.T
+        y_ = y.reshape(1, num_samples)
+
+        if(not self.regularize):
+            alpha = 0
+        
+        weights = {}
+        W = np.matmul(y_, np.matmul(x_.T, np.linalg.inv(np.matmul(x_, x_.T) + alpha * np.identity(num_features))))
+        
+        weights["W"] = W
+
+        predictions = np.matmul(W, x_)
+        self.training_error = ((predictions - y) ** 2).sum()
+        self.weights = weights
+        
+        return predictions.reshape(num_samples)
+    
+    def Predict(self, x):
+        weights = self.weights
+
+        num_samples = x.shape[0]
+        x = np.concatenate([np.ones([num_samples, 1]), x], axis = 1)
+        x_ = x.T
+
+        W = weights["W"]
+        predictions = np.matmul(W, x_)
+
+        return predictions
+
+class Perceptron:
+    weights = None
+    classes = None
+
+    def Fit(self, x, y, epochs = 10):
+        classes = list(set(y))
+        num_samples = x.shape[0]
+        x = np.concatenate([np.ones([num_samples, 1]), x], axis = 1)
+        num_features = x.shape[1]
+        
+        if(len(classes) == 2):
+            W = np.zeros([1, num_features])
+            for i in range(epochs):
+                for j in range(num_samples):
+                    x_ = x[j, :].reshape(num_features, 1)
+                    y_ = y[j]
+
+                    temp = np.matmul(W, x_)
+                    if(y_ == classes[0] and temp >= 0):
+                        W -= x_.T
+                    elif(y_ == classes[1] and temp <= 0):
+                        W += x_.T
+            
+            temp = np.matmul(W, x.T).reshape(num_samples)
+            predictions = np.zeros([num_samples])
+            predictions[temp < 0] = classes[0]
+            predictions[temp > 0] = classes[1]
+
+            self.weights = W
+        else:
+            weights = {}
+            temp_ = np.zeros([num_samples]) - 1
+            for i in range(len(classes)):
+                W = np.zeros([1, num_features])
+                for j in range(epochs):
+                    for k in range(num_samples):
+                        x_ = x[k, :].reshape(num_features, 1)
+                        y_ = y[k]
+
+                        temp = np.matmul(W, x_)
+                        if(y_ == classes[i] and temp >= 0):
+                            W -= x_.T
+                        elif(y_ != classes[i] and temp <= 0):
+                            W += x_.T
+                
+                weights[classes[i]] = W
+                
+                temp = np.matmul(W, x.T).reshape(num_samples)
+                temp_[temp < 0] = i
+            
+            self.weights = weights
+            
+            predictions = []
+            temp_ = temp_.astype(int)
+            for i in range(num_samples):
+                if(temp_[i] != -1):
+                    predictions.append(classes[temp_[i]])
+                else:
+                    predictions.append("")
+            predictions = np.array(predictions)
+            
+        self.classes = classes
+        
+        return predictions
+    
+    def Predict(self, x):
+        classes = self.classes
+        num_samples = x.shape[0]
+        x = np.concatenate([np.ones([num_samples, 1]), x], axis = 1)
+
+        if(len(classes) == 2):
+            W = self.weights
+            temp = np.matmul(W, x.T).reshape(num_samples)
+            predictions = np.zeros([num_samples])
+            predictions[temp < 0] = classes[0]
+            predictions[temp > 0] = classes[1]
+        else:
+            temp_ = np.zeros([num_samples]) - 1
+            for i in range(len(classes)):
+                W = self.weights[i]
+                temp = np.matmul(W, x.T).reshape(num_samples)
+                temp_[temp < 0] = i
+            
+                predictions = []
+                temp_ = temp_.astype(int)
+                for i in range(num_samples):
+                    if(temp_[i] != -1):
+                        predictions.append(classes[temp_[i]])
+                    else:
+                        predictions.append("")
+                predictions = np.array(predictions)
+        
+        return predictions
+
+class FLDA:
+    weights = None
+    classes = None
+
+    def Fit(self, x, y):
+        classes = list(set(y))
+        num_samples = x.shape[0]
+        x = np.concatenate([np.ones([num_samples, 1]), x], axis = 1)
+        x_ = x.T
+
+        self.weights = {}
+        for i in classes:
+            temp = y == i
+
+            x1 = x_[:, temp]
+            x0 = x_[:, 1 - temp]
+
+            M1 = x1.sum(axis = 1) / x1.shape[0]
+            M0 = x0.sum(axis = 0) / x0.shape[0]
+
+            x1 -= M1
+            x0 -= M0
+
+            S = np.matmul(x0, x0.T) + np.matmul(x1, x1.T)
+            W = np.matmul(np.linalg.inv(S), M1 - M0)
+
+            self.weights[i] = W

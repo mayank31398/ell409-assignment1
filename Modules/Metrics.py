@@ -15,7 +15,6 @@ def Precision(predictions, y):
     precision = {}
     for i in classes:
         temp = predictions == i
-        # temp = temp.reshape(temp.shape[0], 1)
         TP = (y[temp] == i).sum(axis = 0)
         precision[i] = TP / temp.sum(axis = 0)
     
@@ -46,6 +45,14 @@ def F1score(predictions, y):
         f1_score[i] = 2 * recall[i] * precision[i] / (recall[i] + precision[i])
     
     return f1_score
+
+def UnclassifiedPoints(predictions):
+    count = 0
+    for i in predictions:
+        if(i == ""):
+            count += 1
+    
+    return count
 
 def roc_curve(y_true, y_score, pos_label=None, sample_weight=None,
               drop_intermediate=True):
@@ -87,7 +94,6 @@ def _binary_clf_curve(y_true, y_score, pos_label=None, sample_weight=None):
         sample_weight = column_or_1d(sample_weight)
 
     # ensure binary classification if pos_label is not specified
-    classes = np.unique(y_true)
     if pos_label is None:
         pos_label = 1.
 
