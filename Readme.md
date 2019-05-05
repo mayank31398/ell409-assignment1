@@ -4,6 +4,10 @@
 
 I thank Professor Prathosh AP (IIT Delhi) for providing the medical and railway datasets.
 
+The problem statement can be found [here](Assignment-1.pdf).
+
+The report can be found [here](Report.pdf).
+
 #### The learning algorithms implemented are:
 ```
 Naive Bayes classifier
